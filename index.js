@@ -3,28 +3,86 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const admin = require('firebase-admin');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocs = require('./swagger'); // Ajusta la ruta según la ubicación del archivo
 
 const app = express();
 
+// Configuración de Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({
-    // credential: admin.credential.cert(require('./ecuabus-33f65-firebase-adminsdk-8hru4-adba7cd730.json')),
     credential: admin.credential.cert(serviceAccount),
     databaseURL: "https://ecuabus-33f65.firebaseio.com"
 });
+
 app.use(cors());
 app.use(bodyParser.json());
 
+/**
+ * @swagger
+ * /ecuabus/{idCoop}/{type}:
+ *   post:
+ *     summary: Crear un usuario
+ *     tags: [Usuarios]
+ *     parameters:
+ *       - in: path
+ *         name: idCoop
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID de la cooperativa
+ *       - in: path
+ *         name: type
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tipo de usuario (por ejemplo, pasajeros, conductores)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               card:
+ *                 type: string
+ *               photo:
+ *                 type: string
+ *               isBlocked:
+ *                 type: boolean
+ *               rol:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Usuario creado exitosamente
+ *       400:
+ *         description: Faltan campos obligatorios o error en los datos proporcionados
+ *       500:
+ *         description: Error interno del servidor
+ */
 app.post('/ecuabus/:idCoop/:type', async (req, res) => {
     const { idCoop, type } = req.params;
-    const { address, card, email, isBlocked, lastName, name, photo, phone, rol, password} = req.body;
+    const { address, card, email, isBlocked, lastName, name, photo, phone, rol, password } = req.body;
 
     if (!email || !password || !name || !lastName) {
         return res.status(400).send({ message: 'Faltan campos obligatorios: email, password, name o lastName.' });
     }
 
     try {
-        // Crear el usuario en Firebase Authentication
         const newUser = await admin.auth().createUser({
             email,
             password,
@@ -32,7 +90,6 @@ app.post('/ecuabus/:idCoop/:type', async (req, res) => {
             phoneNumber: phone || null
         });
 
-        // Guardar los datos adicionales en Firestore
         const userDoc = admin.firestore().collection(`cooperatives/${idCoop}/${type}`).doc(newUser.uid);
         await userDoc.set({
             email,
@@ -63,7 +120,60 @@ app.post('/ecuabus/:idCoop/:type', async (req, res) => {
     }
 });
 
-// Ruta para actualizar un usuario
+/**
+ * @swagger
+ * /ecuabus/{id}/{idCoop}/{type}:
+ *   put:
+ *     summary: Actualizar un usuario
+ *     tags: [Usuarios]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID del usuario
+ *       - in: path
+ *         name: idCoop
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID de la cooperativa
+ *       - in: path
+ *         name: type
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tipo de usuario
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               card:
+ *                 type: string
+ *               photo:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado exitosamente
+ *       400:
+ *         description: Error en los datos proporcionados
+ */
 app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
     const { id, idCoop, type } = req.params;
     const { address, card, email, lastName, name, phone, photo, password } = req.body;
@@ -73,21 +183,18 @@ app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
             displayName: `${name} ${lastName}`,
         };
 
-        // Si se proporciona una contraseña, añadirla a los campos a actualizar
         if (email) {
-            updateFields.email = email;  // Solo se añade si el email existe
+            updateFields.email = email;
         }
         if (phone) {
-            updateFields.phoneNumber = phone;  // Solo se añade si el teléfono existe
+            updateFields.phoneNumber = phone;
         }
         if (password) {
-            updateFields.password = password; // Añadir password si existe
+            updateFields.password = password;
         }
 
-        // Actualizar usuario en Firebase Authentication
         await admin.auth().updateUser(id, updateFields);
 
-        // Crear un objeto para la actualización del documento de Firestore
         const firestoreUpdateFields = {
             address,
             card,
@@ -96,7 +203,6 @@ app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
             photo
         };
 
-        // Solo añadir email y phone a Firestore si existen
         if (email) {
             firestoreUpdateFields.email = email;
         }
@@ -104,7 +210,6 @@ app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
             firestoreUpdateFields.phone = phone;
         }
 
-        // Actualizar documento en Firestore
         const userDoc = admin.firestore().collection(`cooperatives/${idCoop}/${type}`).doc(id);
         await userDoc.update(firestoreUpdateFields);
 
@@ -120,10 +225,39 @@ app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
     }
 });
 
-
-// Ruta para eliminar un usuario
+/**
+ * @swagger
+ * /ecuabus/{id}/{idCoop}/{type}:
+ *   delete:
+ *     summary: Eliminar un usuario
+ *     tags: [Usuarios]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID del usuario
+ *       - in: path
+ *         name: idCoop
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID de la cooperativa
+ *       - in: path
+ *         name: type
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tipo de usuario
+ *     responses:
+ *       200:
+ *         description: Usuario eliminado exitosamente
+ *       400:
+ *         description: Error al eliminar el usuario
+ */
 app.delete('/ecuabus/:id/:idCoop/:type', async (req, res) => {
-    const { id,idCoop,type } = req.params;
+    const { id, idCoop, type } = req.params;
 
     try {
         await admin.auth().deleteUser(id);
