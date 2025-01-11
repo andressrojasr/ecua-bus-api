@@ -90,7 +90,7 @@ app.post('/ecuabus/:idCoop/:type', async (req, res) => {
             phoneNumber: phone || null
         });
 
-        const userDoc = admin.firestore().collection(`cooperatives/${idCoop}/${type}`).doc(newUser.uid);
+        const userDoc = admin.firestore().collection(`users`).doc(newUser.uid);
         await userDoc.set({
             email,
             name,
@@ -210,7 +210,7 @@ app.put('/ecuabus/:id/:idCoop/:type', async (req, res) => {
             firestoreUpdateFields.phone = phone;
         }
 
-        const userDoc = admin.firestore().collection(`cooperatives/${idCoop}/${type}`).doc(id);
+        const userDoc = admin.firestore().collection(`users`).doc(id);
         await userDoc.update(firestoreUpdateFields);
 
         res.status(200).send({ message: 'Usuario actualizado exitosamente' });
@@ -262,7 +262,7 @@ app.delete('/ecuabus/:id/:idCoop/:type', async (req, res) => {
     try {
         await admin.auth().deleteUser(id);
 
-        const userDoc = admin.firestore().collection(`cooperatives/${idCoop}/${type}`).doc(id);
+        const userDoc = admin.firestore().collection(`users`).doc(id);
         await userDoc.delete();
 
         res.status(200).send({ message: 'Usuario eliminado exitosamente' });
